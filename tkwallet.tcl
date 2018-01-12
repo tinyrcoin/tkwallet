@@ -11,6 +11,7 @@ array set opts [list \
 	--daemon-host localhost \
 	--walletd-path "%s/walletd[expr {$tcl_platform(os) eq "windows" ? ".exe" : ""}]" \
 	--miner-path "%s/miner[expr {$tcl_platform(os) eq "windows" ? ".exe" : ""}]" \
+	--daemon-path "%s/forknoted[expr {$tcl_platform(os) eq "windows" ? ".exe" : ""}]" \
 	--config-file "%s/coin.conf" \
 	--lightwallet "0" \
 	--wallet-rpc-bind-port "34230"
@@ -192,12 +193,18 @@ menu .menu.help
 .menu.help add command -label "About" -command {
 	tk_messageBox -title "About TkWallet2X" -message "TkWallet2X (C) 2017, 2018 Ronsor.\nThis is FREE SOFTWARE licensed under the MIT LICENSE.\n"
 }
+.menu add cascade -label "Help" -menu .menu.help
 . configure -menu .menu
 catch { exec [format $opts(--walletd-path) $mepath] -g --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) >@stdout 2>@stderr }
 if { [catch {rpccall getStatus}] } {
-	exec [format $opts(--walletd-path) $mepath] --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) --local 2>@stderr >@stdout &
-	after 2000
-	#while {[catch {rpccall getStatus}]} {after 1000}
+	exec [format $opts(--daemon-path) $mepath] --config-file [file join [pwd] $opts(--config-file)] 2>@stderr >@stdout &
+	exec [format $opts(--walletd-path) $mepath] --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) 2>@stderr >@stdout &
+	toplevel .t
+	label .t.l -text "Waiting for RCoinX daemon..."
+	pack .t.l -ipadx 15 -ipady 15
+	after 1000
+	while {[catch {rpccall getStatus}]} {after 1000}
+	destroy .t
 }
 
 namespace eval wallet {
@@ -248,7 +255,7 @@ proc chwallet x {
 	set ::curaddr $x
 }
 proc convbal b {
-	return [format "%d.%010d" [expr {$b / 10000000000}] [expr {$b % 10000000000}]]
+	return [format "%u.%010u" [expr {$b / 10000000000}] [expr {abs($b % 10000000000)}]]
 }
 proc balconv b {
 	return [expr {$b * 10000000000}]
