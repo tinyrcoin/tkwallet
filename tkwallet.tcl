@@ -1,9 +1,10 @@
 catch {
 package require Tk 8.4
 }
+option add *tearOff 0
 package require http
 set wallet "default"
-catch { wm geometry . 720x480 }
+catch { wm geometry . 800x480 }
 proc settitle {walname} { wm title . "TkWallet2X for RCoinX (${walname})" }
 settitle $wallet
 array set opts [list \
@@ -14,9 +15,16 @@ array set opts [list \
 	--daemon-path "%s/forknoted[expr {$tcl_platform(os) eq "windows" ? ".exe" : ""}]" \
 	--config-file "%s/coin.conf" \
 	--lightwallet "0" \
-	--wallet-rpc-bind-port "34230"
+	--wallet-rpc-bind-port "34230" \
+	--container-file "[file join $::env(HOME) rcoinx.wallet]" \
 ]
 set mepath [file dirname [info script]]
+catch {
+package require starkit
+if { [string match "*.kit*" [info script]] } {
+set mepath [file dirname [info nameofexecutable]]
+}
+}
 if { [string match "*--help*" $argv] } {
 	puts {Usage: tkwallet2x [--walletd-path path/to/walletd] [--config-file path/to/coin.conf] [--lightwallet 1|0] [--miner-path path/to/miner.exe]}
 	puts {}
@@ -186,25 +194,33 @@ array set opts $argv
 menu .menu
 menu .menu.mine
 .menu.mine add command -label "Launch Miner" -command {
-	exec cmd /c start [format $opts(--miner-path) $mepath] --address $curaddr --log-level 4 --threads 1 --daemon-rpc-port $opts(--daemon-port) --daemon-host $opts(--daemon-host)
+	exec cmd /c start [format $opts(--miner-path) $mepath] --address $curaddr --log-level 4 --threads 1 --daemon-rpc-port $opts(--daemon-port) --daemon-host $opts(--daemon-host) &
 }
 .menu add cascade -label "Mining" -menu .menu.mine
 menu .menu.help
 .menu.help add command -label "About" -command {
 	tk_messageBox -title "About TkWallet2X" -message "TkWallet2X (C) 2017, 2018 Ronsor.\nThis is FREE SOFTWARE licensed under the MIT LICENSE.\n"
 }
+.menu.help add command -label "Anonymous Message" -command {
+	tk_messageBox -title "Anonymous Message Info" -message "An anonymous message can be sent instead of coins.\nIt costs only the network transaction fee and the recipient will not know who the message is from.\nThe 'amount' field will be disregarded if you send an anonymous message.\n"
+
+}
 .menu add cascade -label "Help" -menu .menu.help
 . configure -menu .menu
-catch { exec [format $opts(--walletd-path) $mepath] -g --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) >@stdout 2>@stderr }
+catch { exec [format $opts(--walletd-path) $mepath] -g --container-file $opts(--container-file) --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) }
 if { [catch {rpccall getStatus}] } {
-	exec [format $opts(--daemon-path) $mepath] --config-file [file join [pwd] $opts(--config-file)] 2>@stderr >@stdout &
-	exec [format $opts(--walletd-path) $mepath] --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) 2>@stderr >@stdout &
+	exec [format $opts(--daemon-path) $mepath] --config-file [file join [pwd] $opts(--config-file)] &
+	exec [format $opts(--walletd-path) $mepath] --bind-port $opts(--wallet-rpc-bind-port) --container-file $opts(--container-file) --config $opts(--config-file) &
+	wm withdraw .
 	toplevel .t
 	label .t.l -text "Waiting for RCoinX daemon..."
 	pack .t.l -ipadx 15 -ipady 15
+	update
 	after 1000
 	while {[catch {rpccall getStatus}]} {after 1000}
 	destroy .t
+	update
+	wm deiconify .
 }
 
 namespace eval wallet {
@@ -232,16 +248,42 @@ namespace eval wallet {
 		array set r [rpccall getStatus]
 		return "$r(blockCount)/$r(knownBlockCount)"
 	}
-	proc transfer {from to amount} {
-			#addresses [list -raw- "\[\"$from\"\]"]
+	proc transfer {from to amount args} {
 		array set r [rpccall sendTransaction \
 			anonymity {-raw- 0} \
 			fee {-raw- 1000000} \
 			transfers [list -raw- "\[ [dict2json [list amount [list -raw- [balconv $amount]] address $to] ] ]"] \
+			{*}$args \
 		]
 		puts [array get r]
 	}
+	proc sendmsg {from to message} {
+		set amount 1
+		array set r [rpccall sendTransaction \
+			anonymity {-raw- 0} \
+			fee {-raw- 1000000} \
+			extra [BIN2HEX $message] \
+			transfers [list -raw- "\[ [dict2json [list amount [list -raw- [balconv $amount]] address $to] ] ]"] \
+		]
+		puts [array get r]
+	}
+	proc getmsgs {max {start 0}} {
+		set ret {}
+		array set r [rpccall getTransactions blockCount [list -raw- $max] firstBlockIndex [list -raw- $start]]
+		foreach v $r(items) {
+			array set q $v
+			foreach t $q(transactions) {
+				array set tt $t
+				if { [string length $tt(extra)] > 66 } {
+					lappend ret "[clock format $tt(timestamp)]: [HEX2BIN [string range $tt(extra) 66 end]]"
+				}
+			}
+		}
+		return $ret
+	}
 }
+proc BIN2HEX { text }   { binary scan $text H* result; return $result }
+proc HEX2BIN { hex }    { return [binary format H* $hex] }
 proc listaddr {} {
 	destroy .menu.addr
 	menu .menu.addr
@@ -260,10 +302,18 @@ proc convbal b {
 proc balconv b {
 	return [expr {$b * 10000000000}]
 }
+set ::curheight 0
 proc autobal {} {
 	.info configure -text "Balance: [convbal [wallet::balance $::curaddr]]\nBlockchain Height: [wallet::height]\nPeers: [wallet::peers]\n"
 	set ::statusbar [expr {[wallet::issyncing] ? "Syncing... [wallet::syncstat] blocks." : "Ready"}]
-
+	catch {
+	set msgs [wallet::getmsgs 1000000 $::curheight]
+	if {$msgs ne ""} {
+	.anonmsgs.t insert end "[join $msgs "\n"]\n"
+	}
+	array set r [rpccall getStatus]
+	set ::curheight $r(blockCount)
+	} err
 	after 1000 autobal
 }
 listaddr
@@ -279,26 +329,47 @@ label .status -textvariable statusbar -anchor sw -justify left
 pack .status -side bottom -fill x
 label .info -text "" -anchor nw -justify left
 pack .info -side top -fill x
-labelframe .trans -text "Transfer Coins" -padx 5 -pady 5
+labelframe .trans -text "Transfer Coins or Message" -padx 5 -pady 5
 pack .trans -side top -fill x
 label .trans.lto -text "To:" -anchor nw -justify left
-pack .trans.lto -fill x
-entry .trans.to -textvariable trto
-pack .trans.to -fill x
+entry .trans.to -textvariable trto -width 100
+grid .trans.lto .trans.to -sticky nw
 label .trans.lamt -text "Amount:" -anchor nw -justify left
-pack .trans.lamt -fill x
 entry .trans.amt -textvariable tramt -width 20
-pack .trans.amt -anchor nw
+grid .trans.lamt .trans.amt -sticky nw
+label .trans.lid -text "Optional Payment ID:" -anchor nw -justify left
+entry .trans.id -textvariable trid -width 64
+grid .trans.lid .trans.id -sticky nw
+label .trans.lam -text "Anonymous message:"
+entry .trans.am -textvariable tram -width 100
+grid .trans.lam .trans.am -sticky nw
+label .trans.lfee -text "Current network fee:"
+label .trans.fee -text [convbal 1000000]
+grid .trans.lfee .trans.fee -sticky nw
 button .trans.send -text "Send Coins" -command {apply {{} {
 	if [wallet::issyncing] {
 		tk_messageBox -icon error -title Error -message "Wait for syncing to complete."
 		return
 	}
-	if [catch {wallet::transfer $::curaddr $::trto $::tramt}] {
+	set cmd {wallet::transfer $::curaddr $::trto $::tramt}
+	if {$::tram ne ""} {
+		set cmd {wallet::sendmsg $::curaddr $::trto $::tram}
+	}
+	if [catch $cmd] {
 		tk_messageBox -icon error -title "Error" -message "Not enough coins or bad address."
 	} else {
 		set ::trto ""
 		set ::tramt 0
+		set ::tram ""
+		set ::trid ""
 	}
 }}}
-pack .trans.send -anchor ne
+grid x .trans.send -sticky se
+frame .anonmsgs
+text .anonmsgs.t -yscrollcommand {.anonmsgs.s set}
+scrollbar .anonmsgs.s -orient vertical -command {.anonmsgs.t yview}
+label .anonmsgs.l -text "Received anonymous messages:"
+pack .anonmsgs.l
+pack .anonmsgs.t -side left -expand yes -fill both
+pack .anonmsgs.s -side right -fill y
+pack .anonmsgs -expand yes -fill both
