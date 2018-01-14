@@ -236,15 +236,15 @@ namespace eval wallet {
 		return $r(addresses)
 	}
 	proc balance {addr} {
-		array set r [rpccall getBalance address $addr]
-		return [expr {$r(availableBalance) + $r(lockedAmount)}]
+		array set r [rpccall getbalance]
+		return [expr {$r(available_balance) + $r(locked_amount)}]
 	}
 	proc peers {} {
-		array set r [rpccall getStatus]
-		return $r(peerCount)
+		# array set r [rpccall getStatus]
+		return "unknown"
 	}
 	proc height {} {
-		array set r [rpccall getStatus]
+		array set r [rpccall get_heigjt]
 		return $r(blockCount)
 	}
 	proc issyncing {} {
