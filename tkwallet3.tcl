@@ -14,9 +14,9 @@ array set opts [list \
 	--miner-path "%s/miner[expr {$tcl_platform(os) eq "windows" ? ".exe" : ""}]" \
 	--daemon-path "%s/forknoted[expr {$tcl_platform(os) eq "windows" ? ".exe" : ""}]" \
 	--config-file "[file join %s coin.conf]" \
-	--lightwallet "0" \
+	--lightweight "0" \
 	--wallet-rpc-bind-port "34231" \
-	--container-file "[expr {$tcl_platform(os) eq "windows" ? [file join $::env(HOME) AppData Roaming rcoinx.wallet]  : [file join $::env(HOME) rcoinx.v3]}]" \
+	--container-file "[file join $::env(HOME) rcoinx.v3]" \
 ]
 set mepath [file dirname [info script]]
 catch {
@@ -189,6 +189,9 @@ proc rpccall {method args} {
 	return $r(result)
 }
 array set opts $argv
+if {$opts(--daemon-host) eq "localhost" && $opts(--lightweight)} {
+	set opts(--daemon-host) 5.135.179.19
+}
 menu .menu
 menu .menu.mine
 .menu.mine add command -label "Launch Miner" -command {
@@ -251,8 +254,16 @@ proc passdlg a {
 }
 if { [catch {rpccall get_height}] } {
 	set passwd [passdlg [file exists $opts(--container-file).wallet]]
-	exec [format $opts(--daemon-path) $mepath] --config-file [format $opts(--config-file) $mepath] &
-	exec [format $opts(--walletd-path) $mepath] --set_log 4 [expr {[file exists $opts(--container-file).wallet] ? "--wallet-file" : "--generate-new-wallet"}] $opts(--container-file) --pass $passwd --config-file [format $opts(--config-file) $mepath] --wallet-rpc-bind-port=$opts(--wallet-rpc-bind-port) &
+	if !$opts(--lightweight) { exec [format $opts(--daemon-path) $mepath] --config-file [format $opts(--config-file) $mepath] &; }
+	if ![file exists $opts(--container-file).wallet] {
+	set b [list [format $opts(--walletd-path) $mepath] --daemon-port $opts(--daemon-port) --daemon-host $opts(--daemon-host) --set_log 5 [expr {[file exists $opts(--container-file).wallet] ? "--wallet-file" : "--generate-new-wallet"}] $opts(--container-file) --pass $passwd --config-file [format $opts(--config-file) $mepath]]
+	set f [open "|$b" r+]
+	after 1000
+	close $f
+	}
+	set a [list [format $opts(--walletd-path) $mepath] --daemon-port $opts(--daemon-port) --daemon-host $opts(--daemon-host) --set_log 5 [expr {[file exists $opts(--container-file).wallet] ? "--wallet-file" : "--generate-new-wallet"}] $opts(--container-file) --pass $passwd --config-file [format $opts(--config-file) $mepath] --wallet-rpc-bind-port=$opts(--wallet-rpc-bind-port) &]
+	exec {*}$a
+	puts $a
 	wm withdraw .
 	toplevel .t
 	wm title .t "Working"
@@ -298,7 +309,7 @@ namespace eval wallet {
 		return $r(height)
 	}
 	proc daemoninfo {} {
-		set r [http::geturl http://127.0.0.1:$::opts(--daemon-port)/getinfo]
+		set r [http::geturl http://$::opts(--daemon-host):$::opts(--daemon-port)/getinfo]
 		set d [http::data $r]
 		http::cleanup $r
 		return [json2dict $d]
