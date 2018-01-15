@@ -5,7 +5,7 @@ option add *tearOff 0
 package require http
 set wallet "default"
 catch { wm geometry . 800x480 }
-proc settitle {walname} { wm title . "TkWallet2X for RCoinX (${walname})" }
+proc settitle {walname} { wm title . "TkWallet3x for RCoinX (${walname})" }
 catch {settitle $wallet}
 array set opts [list \
 	--daemon-port 12991 \
@@ -16,7 +16,7 @@ array set opts [list \
 	--config-file "[file join %s coin.conf]" \
 	--lightwallet "0" \
 	--wallet-rpc-bind-port "34231" \
-	--container-file "[expr {$tcl_platform(os) eq "windows" ? [file join $::env(HOME) AppData Roaming rcoinx3.wallet]  : [file join $::env(HOME) rcoinx3.wallet]}]" \
+	--container-file "[expr {$tcl_platform(os) eq "windows" ? [file join $::env(HOME) AppData Roaming rcoinx.wallet]  : [file join $::env(HOME) rcoinx.v3]}]" \
 ]
 set mepath [file dirname [info script]]
 catch {
@@ -25,13 +25,8 @@ if { [string match "*.exe*" [info script]] } {
 set mepath [file dirname [info nameofexecutable]]
 }
 }
-catch {
-	if {[file size [file join $::env(HOME) rcoinx.wallet]] > 1} {
-		set opts(--container-file) [file join $::env(HOME) rcoinx.wallet]
-	}
-}
 if { [string match "*--help*" $argv] } {
-	puts {Usage: tkwallet2x [--walletd-path path/to/simplewallet] [--config-file path/to/coin.conf] [--lightwallet 1|0] [--miner-path path/to/miner.exe]}
+	puts {Usage: tkwallet3x [--walletd-path path/to/simplewallet] [--config-file path/to/coin.conf] [--lightwallet 1|0] [--miner-path path/to/miner.exe]}
 	puts {}
 	puts {Defaults:}
 	foreach {k v} [array get opts] {
@@ -186,13 +181,11 @@ proc rpccall {method args} {
 		id none \
 		params $args \
 	]]
-#	puts $query
 	set k [http::geturl "http://127.0.0.1:$::opts(--wallet-rpc-bind-port)/json_rpc" -headers {Accept application/json Content-Type application/json} -query $query]
+	puts $query
 	array set r [json2dict [http::data $k]]
 	http::cleanup $k
-	if {$method eq "sendTransaction"} {
 	puts [array get r]
-	}
 	return $r(result)
 }
 array set opts $argv
@@ -204,7 +197,7 @@ menu .menu.mine
 .menu add cascade -label "Mining" -menu .menu.mine
 menu .menu.help
 .menu.help add command -label "About" -command {
-	tk_messageBox -title "About TkWallet2X-v3" -message "TkWallet2X (C) 2017, 2018 Ronsor.\nThis is FREE SOFTWARE licensed under the MIT LICENSE.\n"
+	tk_messageBox -title "About TkWallet3x" -message "TkWallet3x (C) 2017, 2018 Ronsor.\nThis is FREE SOFTWARE licensed under the MIT LICENSE.\nThis TkWallet build is BETA. We can't guarantee it won't flush your coins down the toilet!"
 }
 .menu.help add command -label "Anonymous Message" -command {
 	tk_messageBox -title "Anonymous Message Info" -message "An anonymous message can be sent instead of coins.\nIt costs only the network transaction fee and the recipient will not know who the message is from.\nThe 'amount' field will be disregarded if you send an anonymous message.\n"
@@ -212,55 +205,118 @@ menu .menu.help
 }
 .menu add cascade -label "Help" -menu .menu.help
 . configure -menu .menu
-#catch { exec [format $opts(--walletd-path) $mepath] -g --container-file $opts(--container-file) --bind-port $opts(--wallet-rpc-bind-port) --config $opts(--config-file) }
-if { [catch {rpccall getStatus}] } {
-  exec [format $opts(--daemon-path) $mepath] --config-file [format $opts(--config-file) $mepath] &
-	exec [format $opts(--walletd-path) $mepath] --config-file [format $opts(--config-file) $mepath] [expr {[file exists $opts(--container-file).wallet] ? "--wallet-file" : "--generate-new-wallet"}] $opts(--container-file) --pass 0 --rpc-bind-port $opts(--wallet-rpc-bind-port) &
-	#exec [format $opts(--walletd-path) $mepath] --log-level 5 --bind-port $opts(--wallet-rpc-bind-port) --container-file $opts(--container-file) --config [format $opts(--config-file) $mepath] &
+wm withdraw .
+proc passdlg a {
+	toplevel .pwd
+	if {!$a} {
+		wm title .pwd "Wallet Creation"
+		label .pwd.l -text "You are creating a new wallet. Enter your desired password below."
+		grid x .pwd.l -padx 4 -pady 4 -sticky nw
+		label .pwd.lp -text "Password:"
+		entry .pwd.ep -width 40 -show * -textvariable pswd
+		grid .pwd.lp .pwd.ep -sticky nw -padx 4 -pady 4
+		label .pwd.lcp -text "Confirm:"
+		entry .pwd.ecp -width 40 -show * -textvariable cpswd
+		grid .pwd.lcp .pwd.ecp -sticky nw -padx 4 -pady 4
+		bind .pwd <Destroy> exit
+		button .pwd.ok -text "Create Wallet" -command {
+			if {$pswd ne $cpswd} {
+				tk_messageBox -icon -error -title "Error" -message "Passwords do not match"
+			} else {
+				set pwdone 1
+			}
+		}
+		grid x .pwd.ok -sticky se -padx 4 -pady 4
+		vwait ::pwdone
+		bind .pwd <Destroy> {}
+		destroy .pwd
+		return $::pswd
+	} else {
+		wm title .pwd "Wallet Login"
+		label .pwd.l -text "You are accessing a wallet. Enter your password below."
+		grid x .pwd.l -padx 4 -pady 4 -sticky nw
+		label .pwd.lp -text "Password:"
+		entry .pwd.ep -width 40 -show * -textvariable pswd
+		grid .pwd.lp .pwd.ep -sticky nw -padx 4 -pady 4
+		bind .pwd <Destroy> exit
+		button .pwd.ok -text "Login" -command {
+			set pwdone 1
+		}
+		grid x .pwd.ok -sticky se -padx 4 -pady 4
+		vwait ::pwdone
+		bind .pwd <Destroy> {}
+		destroy .pwd
+		return $::pswd
+	}
+}
+if { [catch {rpccall get_height}] } {
+	set passwd [passdlg [file exists $opts(--container-file).wallet]]
+	exec [format $opts(--daemon-path) $mepath] --config-file [format $opts(--config-file) $mepath] &
+	exec [format $opts(--walletd-path) $mepath] --set_log 4 [expr {[file exists $opts(--container-file).wallet] ? "--wallet-file" : "--generate-new-wallet"}] $opts(--container-file) --pass $passwd --config-file [format $opts(--config-file) $mepath] --wallet-rpc-bind-port=$opts(--wallet-rpc-bind-port) &
 	wm withdraw .
 	toplevel .t
 	wm title .t "Working"
 	label .t.l -text "Waiting for RCoinX daemon..."
 	pack .t.l -ipadx 15 -ipady 15
 	update
-	after 1000
-	while {[catch {rpccall getStatus}]} {after 1000}
+	after 1000; set n 0
+	while {[catch {rpccall get_height}]} {
+		if {$n > 10} {
+			tk_messageBox -icon error -title Failed -message "Failed to start daemon.\nDid you supply an incorrect password?"
+			exit
+		}
+		after 1000
+		incr n
+	}
 	destroy .t
 	update
 	wm deiconify .
 }
+wm deiconify .
 
 namespace eval wallet {
 	proc addresslist {} {
-		set f [open "$::opts(--container-file).address"]
-		set r [gets $f]
+		set f [open $::opts(--container-file).address]
+		gets $f ret
 		close $f
-		return [list $r]
+		return $ret
 	}
 	proc balance {addr} {
 		array set r [rpccall getbalance]
 		return [expr {$r(available_balance) + $r(locked_amount)}]
 	}
 	proc peers {} {
-		# array set r [rpccall getStatus]
-		return "unknown"
+		array set r [::wallet::daemoninfo]
+		return [expr {$r(outgoing_connections_count)+$r(incoming_connections_count)}]
+	}
+	proc difficulty {} {
+		array set r [::wallet::daemoninfo]
+		return $r(difficulty)
 	}
 	proc height {} {
-		array set r [rpccall get_heigjt]
-		return $r(blockCount)
+		array set r [rpccall get_height]
+		return $r(height)
 	}
+	proc daemoninfo {} {
+		set r [http::geturl http://127.0.0.1:$::opts(--daemon-port)/getinfo]
+		set d [http::data $r]
+		http::cleanup $r
+		return [json2dict $d]
+	}
+	# "alt_blocks_count":0,"difficulty":4666,
+	# "grey_peerlist_size":30,"height":723,"incoming_connections_count":6,
+	# "last_known_block_index":14847,"outgoing_connections_count":3,"status":"OK","tx_count":4,"tx_pool_size":0,"white_peerlist_size":3
 	proc issyncing {} {
-	        return 0
-		#array set r [rpccall getStatus]
-		#return [expr {$r(blockCount) < $r(knownBlockCount)}]
+		array set r [::wallet::daemoninfo]
+		return [expr {$r(height) < $r(last_known_block_index)}]
 	}
 	proc syncstat {} {
-		array set r [rpccall getStatus]
-		return "$r(blockCount)/$r(knownBlockCount)"
+		array set r [::wallet::daemoninfo]
+		return $r(height)/$r(last_known_block_index)
 	}
 	proc transfer {from to amount args} {
 		array set r [rpccall transfer \
-			anonymity {-raw- 0} \
+			mixin {-raw- 0} \
 			fee {-raw- 1000000} \
 			destinations [list -raw- "\[ [dict2json [list amount [list -raw- [balconv $amount]] address $to] ] ]"] \
 			{*}$args \
@@ -268,6 +324,7 @@ namespace eval wallet {
 		puts [array get r]
 	}
 	proc sendmsg {from to message} {
+		return [tk_messageBox -icon error -title Unsupported -message "TODO: fix anonymous messages"]
 		set amount 1
 		array set r [rpccall sendTransaction \
 			anonymity {-raw- 0} \
@@ -277,13 +334,16 @@ namespace eval wallet {
 		]
 		puts [array get r]
 	}
-	proc getmsgs {} {
+	proc getmsgs {max {start 0}} {
 		set ret {}
-		array set r [rpccall get_transfers]
-		foreach v $r {
+		array set r [rpccall getTransactions blockCount [list -raw- $max] firstBlockIndex [list -raw- $start]]
+		foreach v $r(items) {
 			array set q $v
-	  	if { [string match "fefe*" [string tolower $q(payment_id)]] } {
-					lappend ret "[clock format $q(time)]: [HEX2BIN [string range $q(payment_id) 4 end]]"
+			foreach t $q(transactions) {
+				array set tt $t
+				if { [string length $tt(extra)] > 66 } {
+					lappend ret "[clock format $tt(timestamp)]: [HEX2BIN [string range $tt(extra) 66 end]]"
+				}
 			}
 		}
 		return $ret
@@ -313,13 +373,14 @@ set ::curheight 0
 proc autobal {} {
 	.info configure -text "Balance: [convbal [wallet::balance $::curaddr]]\nBlockchain Height: [wallet::height]\nPeers: [wallet::peers]\n"
 	set ::statusbar [expr {[wallet::issyncing] ? "Syncing... [wallet::syncstat] blocks." : "Ready"}]
-	catch {
+	if 0 {
 	set msgs [wallet::getmsgs 1000000 $::curheight]
 	if {$msgs ne ""} {
-	.anonmsgs.t delete 1.0 end
-	.anonmsgs.t insert 1.0 "[join $msgs "\n"]\n"
+	.anonmsgs.t insert end "[join $msgs "\n"]\n"
 	}
-	} err
+	array set r [rpccall getStatus]
+	set ::curheight $r(blockCount)
+	}
 	after 1000 autobal
 }
 listaddr
@@ -358,11 +419,14 @@ button .trans.send -text "Send Coins" -command {apply {{} {
 		return
 	}
 	set cmd {wallet::transfer $::curaddr $::trto $::tramt}
+	if {$::trid ne ""} {
+		append cmd [list payment_id $::trid]
+	}
 	if {$::tram ne ""} {
 		set cmd {wallet::sendmsg $::curaddr $::trto $::tram}
 	}
 	if [catch $cmd] {
-		tk_messageBox -icon error -title "Error" -message "Not enough coins or bad address or the daemon is syncing."
+		tk_messageBox -icon error -title "Error" -message "Not enough coins or the daemon is syncing."
 	} else {
 		set ::trto ""
 		set ::tramt 0
