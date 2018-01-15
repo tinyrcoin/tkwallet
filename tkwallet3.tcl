@@ -204,7 +204,7 @@ menu .menu.mine
 .menu add cascade -label "Mining" -menu .menu.mine
 menu .menu.help
 .menu.help add command -label "About" -command {
-	tk_messageBox -title "About TkWallet2X" -message "TkWallet2X (C) 2017, 2018 Ronsor.\nThis is FREE SOFTWARE licensed under the MIT LICENSE.\n"
+	tk_messageBox -title "About TkWallet2X-v3" -message "TkWallet2X (C) 2017, 2018 Ronsor.\nThis is FREE SOFTWARE licensed under the MIT LICENSE.\n"
 }
 .menu.help add command -label "Anonymous Message" -command {
 	tk_messageBox -title "Anonymous Message Info" -message "An anonymous message can be sent instead of coins.\nIt costs only the network transaction fee and the recipient will not know who the message is from.\nThe 'amount' field will be disregarded if you send an anonymous message.\n"
@@ -232,8 +232,10 @@ if { [catch {rpccall getStatus}] } {
 
 namespace eval wallet {
 	proc addresslist {} {
-		array set r [rpccall getAddresses]
-		return $r(addresses)
+		set f [open "$::opts(--container-file).address"]
+		set r [gets $f]
+		close $f
+		return [list $r]
 	}
 	proc balance {addr} {
 		array set r [rpccall getbalance]
@@ -248,8 +250,9 @@ namespace eval wallet {
 		return $r(blockCount)
 	}
 	proc issyncing {} {
-		array set r [rpccall getStatus]
-		return [expr {$r(blockCount) < $r(knownBlockCount)}]
+	        return 0
+		#array set r [rpccall getStatus]
+		#return [expr {$r(blockCount) < $r(knownBlockCount)}]
 	}
 	proc syncstat {} {
 		array set r [rpccall getStatus]
@@ -313,10 +316,9 @@ proc autobal {} {
 	catch {
 	set msgs [wallet::getmsgs 1000000 $::curheight]
 	if {$msgs ne ""} {
-	.anonmsgs.t insert end "[join $msgs "\n"]\n"
+	.anonmsgs.t delete 1.0 end
+	.anonmsgs.t insert 1.0 "[join $msgs "\n"]\n"
 	}
-	array set r [rpccall getStatus]
-	set ::curheight $r(blockCount)
 	} err
 	after 1000 autobal
 }
@@ -360,7 +362,7 @@ button .trans.send -text "Send Coins" -command {apply {{} {
 		set cmd {wallet::sendmsg $::curaddr $::trto $::tram}
 	}
 	if [catch $cmd] {
-		tk_messageBox -icon error -title "Error" -message "Not enough coins or bad address."
+		tk_messageBox -icon error -title "Error" -message "Not enough coins or bad address or the daemon is syncing."
 	} else {
 		set ::trto ""
 		set ::tramt 0
