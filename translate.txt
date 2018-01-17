@@ -1,0 +1,55 @@
+TkWallet Translation Strings
+-----
+Format: original;translated
+Rules: keep the '\n's in place;
+       ignore text in brackets
+Translated for TkWallet3X-001
+By:
+Language code:
+Date: (dd/mm/yyyy) 
+
+----
+LIST BEGINS
+----
+default;
+TkWallet3x for RCoinX (...);
+Anonymous Message;
+An anonymous message can be sent instead of coins.\nIt costs only the network transaction fee and the recipient will not know who the message is from.\nThe 'amount' field will be disregarded if you send an anonymous message.\n;
+Help;
+Wallet Creation;
+You are creating a new wallet. Enter your desired password below.;
+Password:;
+Confirm:;
+Create Wallet;
+Passwords do not match;
+Wallet Login;
+You are accessing a wallet. Enter your password below.;
+Password:;
+Login;
+Working;
+Waiting for RCoinX daemon...;
+Failed to start daemon.\nDid you supply an incorrect password?;
+difficulty;
+incoming_connections_count;
+white_peerlist_size;
+Balance: [bal]\nBlockchain Height: [height]\n;
+Ready;
+Subject:;
+Address:;
+Transfer Coins or Message;
+To:;
+Amount:;
+Optional Payment ID:;
+Anonymous message:;
+(No Subject);
+Write Anonymous Message;
+Subject;
+Done;
+Write Message (instead of sending coins);
+Current network fee:;
+Send Coins or Message;
+Wait for syncing to complete.;
+Fee: [fee];
+Not enough coins or the daemon is syncing.;
+(No Subject);
+Received anonymous messages:;
