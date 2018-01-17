@@ -1,7 +1,6 @@
 # translated by mmmikhailov
 # ru_RU (tkw3x-001) UTC 17/1/2018
-set ru_data {
-default;по умолчанию
+set ru_data {default;по умолчанию
 TkWallet3x for RCoinX (...);TkWallet3x для RCoinX (...)
 Anonymous Message;Анонимное Сообщение
 An anonymous message can be sent instead of coins.\nIt costs only the network transaction fee and the recipient will not know who the message is from.\nThe 'amount' field will be disregarded if you send an anonymous message.\n;Анонимное сообщение можно отправить вместо монет.\nСтоимость его равна сумме комиссии сети и получатель несможет узнать от кого оно.\n Поле 'количество' будет проигнорировано, если Вы пошлете анонимное сообщение.\n
@@ -42,10 +41,9 @@ Wait for syncing to complete.;Ожидание завершения синхро
 Fee: %s;Комиссия: %s
 Not enough coins or the daemon is syncing.;Недостаточно монет или daemon синхронизируется.
 (No Subject);(Без Темы)
-Received anonymous messages:;Получено анонимное сообщение:
+Received anonymous messages:;Получено анонимное сообщение:}
+foreach {k v} [split $::ru_data ";\n"] {
+	puts "Translation pair: $k -> $v"
+	msgcat::mcset ru [string map [list "\\n" "\n"] $k] [string map [list "\\n" "\n"] $v]
 }
-namespace eval lang_ru {
-	foreach {k v} [split $::ru_data] {
-		msgcat::mcflset $k $v
-	}
-}
+
