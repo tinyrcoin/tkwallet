@@ -388,15 +388,20 @@ namespace eval wallet {
 	proc getmsgs {} {
 		array set ret {}
 		array set r [rpccall get_transfers]
+		array set msgids {}
 		foreach v $r(transfers) {
 			array set q $v
 			set pid [string tolower $q(paymentId)]
 			if [string match fefe* $pid] {
 				set id [scan [string range $pid 4 7] %x]
+				if { ![info exists msgids($id)] || ($q(time) - $msgids($id)) > 300 } {
+					set msgids($id) $q(time)
+				}
 				set seq [scan [string range $pid 8 9] %x]
 				puts "Seq: $seq [string range $pid 8 9]"
 				set msg [string map {"\x00" ""} [HEX2BIN [string range $pid 10 end]]]
-				dict set ret($id) $seq $msg
+				set tkn $msgids($id)
+				dict set ret(${id}-${tkn}) $seq $msg
 			}
 		}
 		set ret2 {}
@@ -532,6 +537,7 @@ button .trans.send -text [mc "Send Coins or Message"] -command {apply {{} {
 		set ::trto ""
 		set ::tramt 0
 		set ::subj "(No Subject)"
+		set ::body ""
 		set ::tram ""
 		set ::trid ""
 	}
