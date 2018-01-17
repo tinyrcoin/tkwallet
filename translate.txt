@@ -2,7 +2,8 @@ TkWallet Translation Strings
 -----
 Format: original;translated
 Rules: keep the '\n's in place;
-       ignore text in brackets
+       do not translate text in brackets;
+       fill out the information below
 Translated for TkWallet3X-001
 By:
 Language code:
