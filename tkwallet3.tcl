@@ -279,10 +279,6 @@ proc passdlg a {
 	}
 }
 proc daemontest {} {
-	set r [http::geturl http://$::opts(--daemon-host):$::opts(--daemon-port)/getinfo]
-	set d [http::data $r]
-	http::cleanup $r
-	return [json2dict $d]
 }
 
 if { [catch {rpccall get_height}] } {
@@ -342,9 +338,12 @@ namespace eval wallet {
 		return $r(height)
 	}
 	proc daemoninfo {} {
+		set d { {"outgoing_connections_count": 0, "incoming_connections_count": 0, "difficulty": 0, "height": 0, "last_known_block_index": 0} }
+		catch {
 		set r [http::geturl http://$::opts(--daemon-host):$::opts(--daemon-port)/getinfo]
 		set d [http::data $r]
 		http::cleanup $r
+		}
 		return [json2dict $d]
 	}
 	# "alt_blocks_count":0,"difficulty":4666,
